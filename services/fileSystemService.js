@@ -3,108 +3,11 @@
  * Handles all low-level file operations for markdown persistence
  */
 
-const DB_NAME = 'nez-tasks-fs';
-const DB_VERSION = 1;
-const STORE_NAME = 'handles';
-const HANDLE_KEY = 'directoryHandle';
+import storageService, { STORAGE_KEYS } from './storageService.js';
 
 class FileSystemService {
   constructor() {
     this.directoryHandle = null;
-    this.db = null;
-  }
-
-  /**
-   * Initialize IndexedDB for storing directory handle
-   */
-  async initDB() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve();
-      };
-      
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
-      };
-    });
-  }
-
-  /**
-   * Store directory handle in IndexedDB
-   */
-  async saveHandle() {
-    if (!this.db || !this.directoryHandle) return;
-    
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.put(this.directoryHandle, HANDLE_KEY);
-      
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  }
-
-  /**
-   * Restore directory handle from IndexedDB
-   * @returns {Promise<boolean>} True if handle was restored and permission granted
-   */
-  async restoreHandle() {
-    if (!this.db) {
-      await this.initDB();
-    }
-    
-    return new Promise(async (resolve) => {
-      const tx = this.db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.get(HANDLE_KEY);
-      
-      request.onerror = () => resolve(false);
-      request.onsuccess = async () => {
-        const handle = request.result;
-        if (!handle) {
-          resolve(false);
-          return;
-        }
-        
-        try {
-          // Request permission - user may need to grant it again
-          const permission = await handle.requestPermission({ mode: 'readwrite' });
-          if (permission === 'granted') {
-            this.directoryHandle = handle;
-            resolve(true);
-          } else {
-            resolve(false);
-          }
-        } catch (err) {
-          console.log('Could not restore directory handle:', err);
-          resolve(false);
-        }
-      };
-    });
-  }
-
-  /**
-   * Clear stored handle (for switching folders)
-   */
-  async clearHandle() {
-    if (!this.db) return;
-    
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.delete(HANDLE_KEY);
-      
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
   }
 
   /**
@@ -125,10 +28,7 @@ class FileSystemService {
       });
       
       // Store handle for persistence
-      if (!this.db) {
-        await this.initDB();
-      }
-      await this.saveHandle();
+      await storageService.set(STORAGE_KEYS.DIRECTORY_HANDLE, this.directoryHandle);
       
       return true;
     } catch (err) {
@@ -137,6 +37,36 @@ class FileSystemService {
       }
       return false;
     }
+  }
+
+  /**
+   * Restore directory handle from storage
+   * @returns {Promise<boolean>} True if handle was restored and permission granted
+   */
+  async restoreHandle() {
+    try {
+      const handle = await storageService.get(STORAGE_KEYS.DIRECTORY_HANDLE);
+      if (!handle) return false;
+      
+      // Request permission - user may need to grant it again
+      const permission = await handle.requestPermission({ mode: 'readwrite' });
+      if (permission === 'granted') {
+        this.directoryHandle = handle;
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.log('Could not restore directory handle:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Clear stored handle (for switching folders)
+   */
+  async clearHandle() {
+    await storageService.delete(STORAGE_KEYS.DIRECTORY_HANDLE);
+    this.directoryHandle = null;
   }
 
   /**
@@ -164,9 +94,7 @@ class FileSystemService {
     if (!this.directoryHandle) {
       throw new Error("No directory selected");
     }
-    return await this.directoryHandle.getDirectoryHandle(name, {
-      create: true,
-    });
+    return await this.directoryHandle.getDirectoryHandle(name, { create: true });
   }
 
   /**
@@ -182,17 +110,13 @@ class FileSystemService {
 
     const files = [];
     try {
-      const subdirHandle = await this.directoryHandle.getDirectoryHandle(
-        subdir,
-        { create: false }
-      );
+      const subdirHandle = await this.directoryHandle.getDirectoryHandle(subdir, { create: false });
       for await (const entry of subdirHandle.values()) {
         if (entry.kind === "file" && entry.name.endsWith(extension)) {
           files.push(entry.name);
         }
       }
     } catch (err) {
-      // Directory doesn't exist yet, return empty
       if (err.name === "NotFoundError") {
         return [];
       }
@@ -212,9 +136,7 @@ class FileSystemService {
       throw new Error("No directory selected");
     }
 
-    const subdirHandle = await this.directoryHandle.getDirectoryHandle(subdir, {
-      create: false,
-    });
+    const subdirHandle = await this.directoryHandle.getDirectoryHandle(subdir, { create: false });
     const fileHandle = await subdirHandle.getFileHandle(filename);
     const file = await fileHandle.getFile();
     return await file.text();
@@ -254,9 +176,7 @@ class FileSystemService {
     }
 
     const subdirHandle = await this.getOrCreateSubdirectory(subdir);
-    const fileHandle = await subdirHandle.getFileHandle(filename, {
-      create: true,
-    });
+    const fileHandle = await subdirHandle.getFileHandle(filename, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(content);
     await writable.close();
@@ -272,9 +192,7 @@ class FileSystemService {
       throw new Error("No directory selected");
     }
 
-    const fileHandle = await this.directoryHandle.getFileHandle(filename, {
-      create: true,
-    });
+    const fileHandle = await this.directoryHandle.getFileHandle(filename, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(content);
     await writable.close();
@@ -291,10 +209,7 @@ class FileSystemService {
     }
 
     try {
-      const subdirHandle = await this.directoryHandle.getDirectoryHandle(
-        subdir,
-        { create: false }
-      );
+      const subdirHandle = await this.directoryHandle.getDirectoryHandle(subdir, { create: false });
       await subdirHandle.removeEntry(filename);
     } catch (err) {
       if (err.name !== "NotFoundError") {

@@ -6,6 +6,7 @@
 import fileSystemService from './services/fileSystemService.js';
 import taskService from './services/taskService.js';
 import sprintService from './services/sprintService.js';
+import { parseMarkdown, createMarkdown } from './services/markdownParser.js';
 import { SearchController } from './components/search.js';
 import { ModalsController } from './components/modals.js';
 import { TaskCardRenderer } from './components/taskCard.js';
@@ -107,7 +108,7 @@ class App {
     const configContent = await fileSystemService.readRootFile(PROJECT_CONFIG_FILE);
     
     if (configContent) {
-      const { frontmatter } = taskService.parseMarkdown(configContent);
+      const { frontmatter } = parseMarkdown(configContent);
       this.projectConfig = frontmatter;
     } else {
       // Create new project config
@@ -129,15 +130,12 @@ class App {
   }
 
   async saveProjectConfig() {
-    const content = [
-      '---',
-      `name: "${this.projectConfig.name}"`,
-      `nextTaskId: ${this.projectConfig.nextTaskId}`,
-      `nextSprintId: ${this.projectConfig.nextSprintId}`,
-      `statuses: ["${this.projectConfig.statuses.join('", "')}"]`,
-      '---',
-      ''
-    ].join('\n');
+    const content = createMarkdown({
+      name: this.projectConfig.name,
+      nextTaskId: this.projectConfig.nextTaskId,
+      nextSprintId: this.projectConfig.nextSprintId,
+      statuses: this.projectConfig.statuses
+    });
     
     await fileSystemService.writeRootFile(PROJECT_CONFIG_FILE, content);
   }

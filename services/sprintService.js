@@ -3,73 +3,11 @@
  */
 
 import fileSystemService from './fileSystemService.js';
+import { parseMarkdown, createMarkdown } from './markdownParser.js';
 
 const SPRINTS_DIR = 'sprints';
 
 class SprintService {
-  /**
-   * Parse YAML frontmatter from markdown content
-   * @param {string} content - Markdown content
-   * @returns {Object} { frontmatter: Object, body: string }
-   */
-  parseMarkdown(content) {
-    const frontmatterRegex = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
-    const match = content.match(frontmatterRegex);
-    
-    if (!match) {
-      return { frontmatter: {}, body: content };
-    }
-
-    const frontmatter = {};
-    const yamlLines = match[1].split('\n');
-    
-    for (const line of yamlLines) {
-      const colonIndex = line.indexOf(':');
-      if (colonIndex > 0) {
-        const key = line.substring(0, colonIndex).trim();
-        let value = line.substring(colonIndex + 1).trim();
-        
-        // Parse values
-        if (value === 'null' || value === '') {
-          value = null;
-        } else if (value === 'true') {
-          value = true;
-        } else if (value === 'false') {
-          value = false;
-        } else if (/^-?\d+$/.test(value)) {
-          value = parseInt(value, 10);
-        } else if (value.startsWith('"') && value.endsWith('"')) {
-          value = value.slice(1, -1);
-        }
-        
-        frontmatter[key] = value;
-      }
-    }
-
-    return { frontmatter, body: match[2].trim() };
-  }
-
-  /**
-   * Serialize sprint to markdown format
-   * @param {Object} sprint - Sprint object
-   * @returns {string} Markdown content
-   */
-  serializeSprint(sprint) {
-    const frontmatter = [
-      '---',
-      `id: ${sprint.id}`,
-      `name: "${sprint.name}"`,
-      `goal: "${sprint.goal || ''}"`,
-      `startDate: "${sprint.startDate}"`,
-      `endDate: "${sprint.endDate}"`,
-      `status: "${sprint.status}"`,
-      '---',
-      ''
-    ].join('\n');
-
-    return frontmatter + (sprint.body || '');
-  }
-
   /**
    * Generate filename from sprint
    * @param {Object} sprint - Sprint object
@@ -84,6 +22,23 @@ class SprintService {
   }
 
   /**
+   * Serialize sprint to markdown format
+   * @param {Object} sprint - Sprint object
+   * @returns {string} Markdown content
+   */
+  serializeSprint(sprint) {
+    const frontmatter = {
+      id: sprint.id,
+      name: sprint.name,
+      goal: sprint.goal || '',
+      startDate: sprint.startDate,
+      endDate: sprint.endDate,
+      status: sprint.status
+    };
+    return createMarkdown(frontmatter, sprint.body || '');
+  }
+
+  /**
    * Get all sprints
    * @returns {Promise<Object[]>} Array of sprint objects
    */
@@ -93,7 +48,7 @@ class SprintService {
 
     for (const filename of files) {
       const content = await fileSystemService.readFile(SPRINTS_DIR, filename);
-      const { frontmatter, body } = this.parseMarkdown(content);
+      const { frontmatter, body } = parseMarkdown(content);
       sprints.push({
         ...frontmatter,
         body,
