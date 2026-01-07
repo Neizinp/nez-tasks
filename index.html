@@ -28,6 +28,11 @@
           <span class="project-name" id="projectName">No folder selected</span>
         </div>
         <div class="header-right">
+          <button class="search-bar-btn" id="searchBarBtn" disabled>
+            <span class="search-bar-icon">🔍</span>
+            <span class="search-bar-text">Search tasks...</span>
+            <kbd class="search-bar-shortcut">⌘K</kbd>
+          </button>
           <button class="btn btn-secondary" id="selectFolderBtn">
             <span class="btn-icon">📁</span>
             Select Folder
@@ -261,6 +266,30 @@
           >
             Add Selected
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div class="search-overlay" id="searchModal">
+      <div class="search-container">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search tasks..."
+            autocomplete="off"
+          />
+          <kbd class="search-shortcut">ESC</kbd>
+        </div>
+        <div class="search-results" id="searchResults">
+          <!-- Results will be rendered here -->
+        </div>
+        <div class="search-footer">
+          <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+          <span><kbd>Enter</kbd> to select</span>
+          <span><kbd>Esc</kbd> to close</span>
         </div>
       </div>
     </div>
