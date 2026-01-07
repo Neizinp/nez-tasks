@@ -3,9 +3,108 @@
  * Handles all low-level file operations for markdown persistence
  */
 
+const DB_NAME = 'nez-tasks-fs';
+const DB_VERSION = 1;
+const STORE_NAME = 'handles';
+const HANDLE_KEY = 'directoryHandle';
+
 class FileSystemService {
   constructor() {
     this.directoryHandle = null;
+    this.db = null;
+  }
+
+  /**
+   * Initialize IndexedDB for storing directory handle
+   */
+  async initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve();
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+    });
+  }
+
+  /**
+   * Store directory handle in IndexedDB
+   */
+  async saveHandle() {
+    if (!this.db || !this.directoryHandle) return;
+    
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(this.directoryHandle, HANDLE_KEY);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  }
+
+  /**
+   * Restore directory handle from IndexedDB
+   * @returns {Promise<boolean>} True if handle was restored and permission granted
+   */
+  async restoreHandle() {
+    if (!this.db) {
+      await this.initDB();
+    }
+    
+    return new Promise(async (resolve) => {
+      const tx = this.db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(HANDLE_KEY);
+      
+      request.onerror = () => resolve(false);
+      request.onsuccess = async () => {
+        const handle = request.result;
+        if (!handle) {
+          resolve(false);
+          return;
+        }
+        
+        try {
+          // Request permission - user may need to grant it again
+          const permission = await handle.requestPermission({ mode: 'readwrite' });
+          if (permission === 'granted') {
+            this.directoryHandle = handle;
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        } catch (err) {
+          console.log('Could not restore directory handle:', err);
+          resolve(false);
+        }
+      };
+    });
+  }
+
+  /**
+   * Clear stored handle (for switching folders)
+   */
+  async clearHandle() {
+    if (!this.db) return;
+    
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.delete(HANDLE_KEY);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
   }
 
   /**
@@ -24,6 +123,13 @@ class FileSystemService {
       this.directoryHandle = await window.showDirectoryPicker({
         mode: "readwrite",
       });
+      
+      // Store handle for persistence
+      if (!this.db) {
+        await this.initDB();
+      }
+      await this.saveHandle();
+      
       return true;
     } catch (err) {
       if (err.name !== "AbortError") {

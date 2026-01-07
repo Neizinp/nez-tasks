@@ -35,6 +35,18 @@ class App {
     this.search.init();
     this.modals.init();
     this.checkBrowserSupport();
+    this.tryRestoreProject();
+  }
+
+  /**
+   * Try to restore the previously used directory on startup
+   */
+  async tryRestoreProject() {
+    const restored = await fileSystemService.restoreHandle();
+    if (restored) {
+      await this.loadProject();
+      this.showMainContent();
+    }
   }
 
   checkBrowserSupport() {
