@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nez Tasks - Scrum Board</title>
+    <meta
+      name="description"
+      content="A Jira-like Scrum board with markdown-based storage"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <h1 class="logo">
+            <span class="logo-icon">⚡</span>
+            <span class="logo-text">Nez Tasks</span>
+          </h1>
+          <span class="project-name" id="projectName">No folder selected</span>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-secondary" id="selectFolderBtn">
+            <span class="btn-icon">📁</span>
+            Select Folder
+          </button>
+          <button class="btn btn-primary" id="newSprintBtn" disabled>
+            <span class="btn-icon">➕</span>
+            New Sprint
+          </button>
+        </div>
+      </header>
+
+      <!-- Welcome Screen (shown when no folder selected) -->
+      <div class="welcome-screen" id="welcomeScreen">
+        <div class="welcome-content">
+          <div class="welcome-icon">📋</div>
+          <h2>Welcome to Nez Tasks</h2>
+          <p>A simple Scrum board with markdown-based storage.</p>
+          <p class="welcome-hint">
+            Select a folder to store your tasks and sprints.
+          </p>
+          <button class="btn btn-primary btn-large" id="welcomeSelectBtn">
+            <span class="btn-icon">📁</span>
+            Select Folder
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Content (hidden until folder selected) -->
+      <main class="main-content" id="mainContent" style="display: none">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <nav class="nav">
+            <button class="nav-item active" data-view="backlog">
+              <span class="nav-icon">📥</span>
+              Backlog
+            </button>
+            <div class="nav-separator"></div>
+            <div class="nav-label">Sprints</div>
+            <div class="sprint-list" id="sprintList">
+              <!-- Sprint items will be rendered here -->
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Board Area -->
+        <section class="board-area">
+          <!-- Backlog View -->
+          <div class="view" id="backlogView">
+            <div class="view-header">
+              <h2 class="view-title">Backlog</h2>
+              <button class="btn btn-primary" id="newTaskBtn">
+                <span class="btn-icon">➕</span>
+                New Task
+              </button>
+            </div>
+            <div class="backlog-list" id="backlogList">
+              <!-- Backlog tasks will be rendered here -->
+            </div>
+          </div>
+
+          <!-- Sprint Board View -->
+          <div class="view" id="sprintView" style="display: none">
+            <div class="view-header">
+              <div class="sprint-header-info">
+                <h2 class="view-title" id="sprintTitle">Sprint 1</h2>
+                <span class="sprint-dates" id="sprintDates"></span>
+                <span class="sprint-status-badge" id="sprintStatusBadge"></span>
+              </div>
+              <div class="sprint-actions">
+                <button class="btn btn-secondary" id="addToSprintBtn">
+                  <span class="btn-icon">➕</span>
+                  Add Task
+                </button>
+                <button class="btn btn-primary" id="startSprintBtn">
+                  Start Sprint
+                </button>
+              </div>
+            </div>
+            <div class="kanban-board" id="kanbanBoard">
+              <div class="kanban-column" data-status="todo">
+                <div class="column-header">
+                  <span class="column-title">To Do</span>
+                  <span class="column-count" id="todoCount">0</span>
+                </div>
+                <div class="column-tasks" id="todoTasks"></div>
+              </div>
+              <div class="kanban-column" data-status="in-progress">
+                <div class="column-header">
+                  <span class="column-title">In Progress</span>
+                  <span class="column-count" id="inProgressCount">0</span>
+                </div>
+                <div class="column-tasks" id="inProgressTasks"></div>
+              </div>
+              <div class="kanban-column" data-status="done">
+                <div class="column-header">
+                  <span class="column-title">Done</span>
+                  <span class="column-count" id="doneCount">0</span>
+                </div>
+                <div class="column-tasks" id="doneTasks"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="modal-overlay" id="taskModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="taskModalTitle">New Task</h3>
+          <button class="modal-close" id="closeTaskModal">&times;</button>
+        </div>
+        <form class="modal-form" id="taskForm">
+          <div class="form-group">
+            <label for="taskTitle">Title *</label>
+            <input
+              type="text"
+              id="taskTitle"
+              required
+              placeholder="What needs to be done?"
+            />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="taskPriority">Priority</label>
+              <select id="taskPriority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="taskPoints">Story Points</label>
+              <input type="number" id="taskPoints" min="0" max="21" value="0" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="taskBody">Description</label>
+            <textarea
+              id="taskBody"
+              rows="4"
+              placeholder="Add more details..."
+            ></textarea>
+          </div>
+          <input type="hidden" id="taskId" />
+          <input type="hidden" id="taskSprint" />
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelTaskBtn">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Save Task</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint Modal -->
+    <div class="modal-overlay" id="sprintModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">New Sprint</h3>
+          <button class="modal-close" id="closeSprintModal">&times;</button>
+        </div>
+        <form class="modal-form" id="sprintForm">
+          <div class="form-group">
+            <label for="sprintName">Sprint Name *</label>
+            <input
+              type="text"
+              id="sprintName"
+              required
+              placeholder="Sprint 1"
+            />
+          </div>
+          <div class="form-group">
+            <label for="sprintGoal">Sprint Goal</label>
+            <input
+              type="text"
+              id="sprintGoal"
+              placeholder="What do you want to achieve?"
+            />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sprintStart">Start Date *</label>
+              <input type="date" id="sprintStart" required />
+            </div>
+            <div class="form-group">
+              <label for="sprintEnd">End Date *</label>
+              <input type="date" id="sprintEnd" required />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              id="cancelSprintBtn"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Create Sprint</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Backlog Picker Modal (for adding tasks to sprint) -->
+    <div class="modal-overlay" id="backlogPickerModal">
+      <div class="modal modal-wide">
+        <div class="modal-header">
+          <h3 class="modal-title">Add Tasks to Sprint</h3>
+          <button class="modal-close" id="closeBacklogPickerModal">
+            &times;
+          </button>
+        </div>
+        <div class="backlog-picker" id="backlogPicker">
+          <!-- Backlog items for selection -->
+        </div>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            id="cancelBacklogPickerBtn"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="addSelectedTasksBtn"
+          >
+            Add Selected
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
